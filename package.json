@@ -1,0 +1,51 @@
+{
+  "name": "pretty-js-bridge",
+  "version": "1.0.0",
+  "description": "Platform- and app-agnostic, type-safe JavaScript bridge for embedded H5 applications.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "unpkg": "./dist/index.umd.js",
+  "types": "./dist/types/public.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/public.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.type-tests.json",
+    "typecheck:examples": "tsc -p tsconfig.examples.json",
+    "test": "vitest run --coverage",
+    "build": "npm run clean && tsc -p tsconfig.declarations.json && vite build --mode library && vite build --mode umd",
+    "check": "npm run typecheck && npm run typecheck:tests && npm run typecheck:examples && npm test && npm run build && npm run build:example:flutter",
+    "build:example:flutter": "node scripts/build-flutter-example.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4",
+    "@vitest/coverage-v8": "^3.2.4",
+    "vite": "^7.3.6"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "jsbridge",
+    "webview",
+    "android",
+    "ios",
+    "flutter",
+    "react-native",
+    "typescript"
+  ],
+  "license": "MIT"
+}

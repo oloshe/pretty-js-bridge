@@ -1,0 +1,16 @@
+{
+    "extends":  "./tsconfig.build.json",
+    "compilerOptions":  {
+                            "noEmit":  true
+                        },
+    "include":  [
+                    "src/public.ts",
+                    "src/bridge-core.ts",
+                    "src/platforms.ts",
+                    "src/runtime-utils.ts",
+                    "src/schema.ts",
+                    "src/umd.ts",
+                    "tests/**/*.ts",
+                    "tests/**/*.test-d.ts"
+                ]
+}

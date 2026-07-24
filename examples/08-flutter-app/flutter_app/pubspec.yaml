@@ -1,0 +1,19 @@
+﻿name: pretty_js_bridge_flutter_example
+description: A Flutter WebView host for the pretty-js-bridge example.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.10.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/index.html
+    - assets/example.js
+    - assets/example.js.map

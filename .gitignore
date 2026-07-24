@@ -1,0 +1,51 @@
+# Dependencies and package-manager caches
+node_modules/
+.pnpm-store/
+.npm/
+
+# Build and test output
+dist/
+coverage/
+*.tsbuildinfo
+*.tgz
+
+# Tool caches
+.cache/
+.vite/
+.codegraph/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local agent working notes
+task_plan.md
+findings.md
+progress.md
+
+# Generated Flutter example files
+/examples/08-flutter-app/flutter_app/.dart_tool/
+/examples/08-flutter-app/flutter_app/.flutter-plugins
+/examples/08-flutter-app/flutter_app/.flutter-plugins-dependencies
+/examples/08-flutter-app/flutter_app/.metadata
+/examples/08-flutter-app/flutter_app/.packages
+/examples/08-flutter-app/flutter_app/build/
+/examples/08-flutter-app/flutter_app/android/
+/examples/08-flutter-app/flutter_app/ios/
+/examples/08-flutter-app/flutter_app/assets/example.js
+/examples/08-flutter-app/flutter_app/assets/example.js.map
