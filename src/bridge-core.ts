@@ -250,6 +250,8 @@ class BridgeRuntime {
         }
       }
     }
+    const resolvedNativeCallbackName =
+      nativeCallbackName ?? config.callbackName;
     const callbackId = `${Date.now().toString(36)}_${++this.sequence}`;
     const callbackName = `${this.callbackNamespace}.${callbackId}`;
     const envelope: BridgeEnvelope = {
@@ -258,8 +260,8 @@ class BridgeRuntime {
       $callbackId: callbackId,
       $callbackName: callbackName,
     };
-    if (nativeCallbackName) {
-      envelope.nativeCallbackName = nativeCallbackName;
+    if (resolvedNativeCallbackName) {
+      envelope.nativeCallbackName = resolvedNativeCallbackName;
     }
     if (args.length > 0) envelope.params = params;
 
@@ -287,8 +289,9 @@ class BridgeRuntime {
         this.settle(callbackId, true, parseNativeMessage(data));
       });
       const cleanupNativeCallback =
-        nativeCallbackName && nativeCallbackName !== callbackName
-          ? installAtPath(nativeCallbackName, (value: unknown) => {
+        resolvedNativeCallbackName &&
+        resolvedNativeCallbackName !== callbackName
+          ? installAtPath(resolvedNativeCallbackName, (value: unknown) => {
               const callback = getAtPath(callbackName);
               if (typeof callback === 'function') {
                 (callback as (response: unknown) => void)(value);

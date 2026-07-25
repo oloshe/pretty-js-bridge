@@ -102,38 +102,50 @@ window.onImageChooserResult(imageUrl);
 window.onChatListResult(result);
 ```
 
-callback 名现在直接写在调用处，不再维护 `legacyCallbackNames`：
+固定 callback 名可以集中写在逐方法注册配置中：
+
+```ts
+methods: {
+  getTitleBar: {
+    callbackName: 'onGetTitleBar',
+  },
+  showImageChooser: {
+    callbackName: 'onImageChooserResult',
+  },
+  getChatList: {
+    target: 'getChatList',
+    callbackName: 'onChatListResult',
+  },
+}
+```
+
+业务层不再重复声明固定名称，直接调用类型方法：
+
+```ts
+const titleBar = await legacyAppBridge.getTitleBar();
+const imageUrl = await legacyAppBridge.showImageChooser();
+const chatList = await legacyAppBridge.getChatList();
+```
+
+`callbackName` 会让 bridge 安装 native 可见的全局 callback，并把名字作为 `message.nativeCallbackName` 交给 transport。legacy adapter 只需把它写入旧 payload 的 `callBackName`。
+
+某一次调用需要临时使用其他名称时，仍可覆盖注册值：
 
 ```ts
 const titleBar =
   await legacyAppBridge.getTitleBar.withCallback(
-    'onGetTitleBar',
-  );
-
-const imageUrl =
-  await legacyAppBridge.showImageChooser.withCallback(
-    'onImageChooserResult',
-  );
-
-const chatList =
-  await legacyAppBridge.getChatList.withCallback(
-    'onChatListResult',
+    'onPreviewTitleBar',
   );
 ```
 
-`withCallback()` 会为本次调用安装 native 可见的 callback，并把名字作为 `message.nativeCallbackName` 交给 transport。legacy adapter 只需把它写入旧 payload 的 `callBackName`。
-
-native 调用这个全局函数后，对应 Promise 会 resolve；完成、超时或 `$destroy()` 时 callback 都会被恢复或移除。
+优先级是单次 `.withCallback(name)`、方法 `callbackName`、最后不发送 `nativeCallbackName`。native 调用对应全局函数后 Promise 会 resolve；完成、超时或 `$destroy()` 时 callback 都会被恢复或移除。
 
 这个机制保持了旧 native 行为。不过同一个静态 callback 名不适合同时发起多个并发请求；原来的 EventBus `once` 实现也有相同约束。若未来 native 能升级，建议改用每次请求唯一的 `$callbackId/$callbackName`。
 
 native 即使把结果作为 JSON 字符串传给 `onGetTitleBar`，PrettyJsBridge 也会在 callback 层解析。协议直接声明最终对象，业务包装无需 `parseStringObject()`：
 
 ```ts
-export const getTitleBar = () =>
-  legacyAppBridge.getTitleBar.withCallback(
-    'onGetTitleBar',
-  );
+export const getTitleBar = () => legacyAppBridge.getTitleBar();
 ```
 
 ## 4. 无回调方法
@@ -170,7 +182,7 @@ getTitleBar: {
 }
 ```
 
-旧 iOS 或 Android 调用该方法时不会发送 native 消息，直接返回 fallback。版本满足要求时仍走 `withCallback('onGetTitleBar')`。
+旧 iOS 或 Android 调用该方法时不会发送 native 消息，直接返回 fallback。版本满足要求时使用方法配置的 `callbackName: 'onGetTitleBar'`。
 
 ## 6. App 生命周期事件
 

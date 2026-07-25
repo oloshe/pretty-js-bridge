@@ -130,6 +130,7 @@ const partiallyTypedBridge = PrettyJsBridge.register<{
         android: 'googlePay',
         ios: 'iOSPay',
       },
+      callbackName: 'onA',
     },
     b: true,
   },

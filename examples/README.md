@@ -11,7 +11,7 @@
 | [`02-events-and-callback-paths`](./02-events-and-callback-paths/) | 事件 payload 第二泛型、`$on` / `$once` listener 推断、全局函数、嵌套对象路径、统一入口事件 |
 | [`03-native-handlers`](./03-native-handlers/) | `$handle`、直接 handler、统一入口 handler、`handler-result` |
 | [`04-custom-transport-and-lifecycle`](./04-custom-transport-and-lifecycle/) | 自定义 transport、逐方法 transport、broadcast、`$callbackName`、超时、`$destroy` |
-| [`05-legacy-app-adapter`](./05-legacy-app-adapter/) | 匿名旧业务协议、静态回调、内部 JSON 解析、版本 fallback 和渐进迁移 |
+| [`05-legacy-app-adapter`](./05-legacy-app-adapter/) | 匿名旧业务协议、注册固定 callback、单次覆盖、内部 JSON 解析、版本 fallback 和渐进迁移 |
 | [`06-game-middleware-adapter`](./06-game-middleware-adapter/) | 匿名游戏中台的 `actionName/actionParams/callBackName`、统一 `nativeToH5`、平台优先级和本地 mock |
 | [`07-platform-version-fallback`](./07-platform-version-fallback/) | 初始化平台/版本、逐方法 `supportedFrom`、类型安全 fallback、无 fallback 错误 |
 | [`08-flutter-app`](./08-flutter-app/) | Flutter WebView App、JavaScriptChannel、Dart 消息路由、Promise 回调和自定义 logger |

@@ -126,14 +126,20 @@ export const legacyAppBridge = PrettyJsBridge.register<LegacyAppProtocol>({
     updateTitleBar: true,
     callRouter: true,
     getTitleBar: {
+      callbackName: 'onGetTitleBar',
       supportedFrom: { ios: '2.5.0' },
       fallback: () => ({
         statusBarHeight:
           Number(query.get('statusBarHeight')) || 0,
       }),
     },
-    showImageChooser: true,
-    getChatList: { target: 'getChatList' },
+    showImageChooser: {
+      callbackName: 'onImageChooserResult',
+    },
+    getChatList: {
+      target: 'getChatList',
+      callbackName: 'onChatListResult',
+    },
     base64ToImage: true,
   },
   events: {
@@ -166,13 +172,13 @@ export const callRouter = (
 
 export const getTitleBar = (): Promise<{
   statusBarHeight: number;
-}> => legacyAppBridge.getTitleBar.withCallback('onGetTitleBar');
+}> => legacyAppBridge.getTitleBar();
 
 export const showImageChooser = (): Promise<string> =>
-  legacyAppBridge.showImageChooser.withCallback('onImageChooserResult');
+  legacyAppBridge.showImageChooser();
 
 export const getChatListByNative = (): Promise<ChatUser[]> =>
-  legacyAppBridge.getChatList.withCallback('onChatListResult');
+  legacyAppBridge.getChatList();
 
 export const onResume = (
   callback: () => void,

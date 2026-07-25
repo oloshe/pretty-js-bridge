@@ -80,36 +80,57 @@ describe('PrettyJsBridge', () => {
     await expect(result).resolves.toEqual({ opened: true });
   });
 
-  it('selects a native callback at the call site and cleans it up', async () => {
-    let request: BridgeEnvelope | undefined;
+  it('uses a configured callback, allows a call-site override, and cleans up', async () => {
+    const requests: BridgeEnvelope[] = [];
     const bridge = PrettyJsBridge.register<TestProtocol>({
-      methods: { openPage: true },
+      methods: {
+        openPage: {
+          callbackName: 'legacyCallbacks.defaultOpenPage',
+        },
+      },
       transports: [
         customTransport({
           name: 'legacy',
           send: (message) => {
-            request = message as BridgeEnvelope;
+            if (message.type === 'request') requests.push(message);
           },
         }),
       ],
     });
 
-    const result = bridge.openPage.withCallback(
-      'legacyCallbacks.onOpenPage',
+    const defaultResult = bridge.openPage({ url: '/default' });
+    expect(requests[0]?.nativeCallbackName).toBe(
+      'legacyCallbacks.defaultOpenPage',
+    );
+    const defaultCallback = (
+      globalThis as Record<string, any>
+    ).legacyCallbacks.defaultOpenPage;
+    expect(defaultCallback).toBeTypeOf('function');
+
+    defaultCallback(JSON.stringify({ opened: true }));
+
+    await expect(defaultResult).resolves.toEqual({ opened: true });
+    expect(
+      (globalThis as Record<string, unknown>).legacyCallbacks,
+    ).toBeUndefined();
+
+    const overrideResult = bridge.openPage.withCallback(
+      'legacyCallbacks.overrideOpenPage',
       { url: '/legacy' },
     );
 
-    expect(request?.nativeCallbackName).toBe(
-      'legacyCallbacks.onOpenPage',
+    expect(requests[1]?.nativeCallbackName).toBe(
+      'legacyCallbacks.overrideOpenPage',
     );
-    const callback = (
+    const callbacks = (
       globalThis as Record<string, any>
-    ).legacyCallbacks.onOpenPage;
-    expect(callback).toBeTypeOf('function');
+    ).legacyCallbacks;
+    expect(callbacks.defaultOpenPage).toBeUndefined();
+    expect(callbacks.overrideOpenPage).toBeTypeOf('function');
 
-    callback(JSON.stringify({ opened: true }));
+    callbacks.overrideOpenPage(JSON.stringify({ opened: true }));
 
-    await expect(result).resolves.toEqual({ opened: true });
+    await expect(overrideResult).resolves.toEqual({ opened: true });
     expect(
       (globalThis as Record<string, unknown>).legacyCallbacks,
     ).toBeUndefined();

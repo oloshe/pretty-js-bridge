@@ -131,8 +131,8 @@ export interface BridgeEnvelope {
    */
   $callbackName: string;
   /**
-   * @en Native-visible callback name supplied by `withCallback()`.
-   * @zh `withCallback()` 指定的 native 可见回调名。
+   * @en Native-visible callback name resolved from method config or `withCallback()`.
+   * @zh 从方法配置或 `withCallback()` 解析出的 native 可见回调名。
    */
   nativeCallbackName?: string;
 }
@@ -355,6 +355,11 @@ export interface MethodConfig<
    * @zh native 方法名或按平台配置的方法名；默认使用 schema 方法 key。
    */
   target?: MethodTarget;
+  /**
+   * @en Default native-visible callback name; `withCallback()` overrides it for one call.
+   * @zh 默认的 native 可见回调名；`withCallback()` 可为单次调用覆盖它。
+   */
+  callbackName?: string;
   /**
    * @en Selects one named transport for this method.
    * @zh 为该方法指定一个 transport 名称。

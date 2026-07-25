@@ -18,6 +18,7 @@
 - 支持从 `methods` 配置推断方法，也支持“部分严格协议 + 额外未知方法”
 - 函数式协议支持第二泛型声明事件 payload，`$on` / `$once` 按事件名推断 listener
 - 同一个公共方法可按 Android、iOS 等 transport 平台映射到不同 native 方法
+- 支持在逐方法配置中声明固定 `callbackName`，并用 `withCallback()` 单次覆盖
 
 完整场景教程见 [`examples/`](./examples/)：包括类型安全的平台调用、事件与回调路径、native handlers、自定义 transport、生命周期和可运行的 Flutter WebView App。
 
@@ -242,28 +243,41 @@ bridge.$on('paymentChanged', (payload) => {
 
 `$on` 和 `$once` 只接受已声明或注册配置中出现的事件名。已声明事件的 listener 参数使用对应 payload；只在配置中新增的事件保持 `unknown`。完整教程见 [`examples/02-events-and-callback-paths`](./examples/02-events-and-callback-paths/)。
 
-旧宿主要求 H5 在每次调用时提供静态 callback 名时，直接使用方法上的 `withCallback`：
+### 固定 native callback 名
+
+旧宿主要求 H5 提供静态 callback 名时，可以在逐方法配置中集中声明：
 
 ```ts
-const titleBar =
-  await h5ToNative.getTitleBar.withCallback(
-    'onGetTitleBar',
-  );
+const h5ToNative = PrettyJsBridge.register<AppBridgeProtocol>({
+  methods: {
+    getTitleBar: {
+      callbackName: 'onGetTitleBar',
+    },
+  },
+  transports: [transport],
+});
 
-const result =
-  await h5ToNative.openPage.withCallback(
-    'onOpenPage',
-    { url: '/home' },
+const titleBar = await h5ToNative.getTitleBar();
+```
+
+某次调用需要不同的名称时，使用 `withCallback()` 覆盖注册值：
+
+```ts
+const previewTitleBar =
+  await h5ToNative.getTitleBar.withCallback(
+    'onPreviewTitleBar',
   );
 ```
 
-callback 名属于本次调用，不需要在注册配置中集中维护。库会：
+callback 名的优先级为：
 
-1. 安装 `window.onGetTitleBar` 等 native 可见 callback。
-2. 在发给 transport 的 request 中提供 `nativeCallbackName`。
-3. callback 执行、超时或实例销毁后恢复原值或清理路径。
+1. 本次调用的 `.withCallback(name)`。
+2. 方法配置的 `callbackName`。
+3. 两者都没有时，不设置 `message.nativeCallbackName`。
 
-自定义 transport 可以把 `nativeCallbackName` 转换成旧协议的 `callBackName`。同一个静态 callback 名不适合并发调用；支持升级 native 时应优先使用库生成的唯一 `$callbackName`。
+使用固定 callback 时，库会安装对应的 native 可见全局函数，在 request 中提供 `nativeCallbackName`，并在 callback 执行、超时或实例销毁后恢复原值或清理路径。自定义 transport 可以把它转换成旧协议的 `callBackName`。
+
+同一个静态 callback 名不适合并发调用；支持升级 native 时应优先使用库生成的唯一 `$callbackName`。
 
 ### 平台版本与 fallback
 
@@ -350,7 +364,7 @@ window.callJsBridge({
   params: { userId: '42' },
   $callbackId: '...',
   $callbackName: '__prettyJsBridgeCallbacks....',
-  nativeCallbackName: 'onGetUser' // 仅 withCallback 调用存在
+  nativeCallbackName: 'onGetUser' // 配置 callbackName 或使用 withCallback 时存在
 }
 ```
 
