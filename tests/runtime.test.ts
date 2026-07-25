@@ -136,6 +136,63 @@ describe('PrettyJsBridge', () => {
     ).toBeUndefined();
   });
 
+  it('shares a configured callback path with an event and resolves through a one-time listener', async () => {
+    type SharedCallbackProtocol = {
+      methods: {
+        openPage: BridgeMethod<{ url: string }, { opened: boolean }>;
+      };
+      events: {
+        openPageResult: BridgeEvent<{ opened: boolean }>;
+      };
+    };
+    let request: BridgeEnvelope | undefined;
+    const bridge = PrettyJsBridge.register<SharedCallbackProtocol>({
+      methods: {
+        openPage: {
+          callbackName: 'legacyCallbacks.openPageResult',
+        },
+      },
+      events: {
+        openPageResult: {
+          path: 'legacyCallbacks.openPageResult',
+        },
+      },
+      transports: [
+        customTransport({
+          name: 'legacy',
+          send: (message) => {
+            if (message.type === 'request') request = message;
+          },
+        }),
+      ],
+    });
+    const listener = vi.fn();
+    bridge.$on('openPageResult', listener);
+    const eventCallback = (
+      globalThis as Record<string, any>
+    ).legacyCallbacks.openPageResult;
+
+    const result = bridge.openPage({ url: '/shared-callback' });
+
+    expect(request?.nativeCallbackName).toBe(
+      'legacyCallbacks.openPageResult',
+    );
+    expect(
+      (globalThis as Record<string, any>).legacyCallbacks.openPageResult,
+    ).toBe(eventCallback);
+
+    eventCallback(JSON.stringify({ opened: true }));
+
+    await expect(result).resolves.toEqual({ opened: true });
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith({ opened: true });
+    expect(
+      (globalThis as Record<string, any>).legacyCallbacks.openPageResult,
+    ).toBe(eventCallback);
+
+    bridge.$destroy();
+  });
+
   it('publishes direct window and nested-path callbacks as events', () => {
     const bridge = PrettyJsBridge.register<TestProtocol>({
       methods: { openPage: true },

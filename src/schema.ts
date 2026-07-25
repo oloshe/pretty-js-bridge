@@ -364,6 +364,8 @@ export interface MethodConfig<M = BridgeMethod<any, any>> {
   /**
    * @en Default native-visible callback name; `withCallback()` overrides it for one call.
    * @zh 默认的 native 可见回调名；`withCallback()` 可为单次调用覆盖它。
+   * @en When the resolved path matches a registered event path, the method Promise resolves through a one-time event listener.
+   * @zh 当最终路径与已注册事件路径相同时，方法 Promise 会通过一次性事件监听完成。
    */
   callbackName?: string;
   /**

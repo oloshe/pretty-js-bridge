@@ -46,6 +46,7 @@ interface LegacyAppEvents {
   onPause: void;
   shareInfo: void;
   memoryWarning: void;
+  onImageChooserResult: string;
 }
 
 interface LegacyBridgePayload {
@@ -183,6 +184,7 @@ export const legacyAppBridge = PrettyJsBridge.register<
     onPause: true,
     shareInfo: true,
     memoryWarning: true,
+    onImageChooserResult: true,
   },
   transports: [legacyAppTransport],
   timeout: 10_000,
@@ -229,3 +231,8 @@ export const onResume = (
 export const onPause = (
   callback: () => void,
 ): (() => void) => legacyAppBridge.$on('onPause', callback);
+
+export const onImageChooserResult = (
+  callback: (imageUrl: string) => void,
+): (() => void) =>
+  legacyAppBridge.$on('onImageChooserResult', callback);

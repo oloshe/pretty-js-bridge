@@ -1,6 +1,6 @@
 {
   "name": "pretty-js-bridge",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Platform- and app-agnostic, type-safe JavaScript bridge for embedded H5 applications.",
   "repository": {
     "type": "git",

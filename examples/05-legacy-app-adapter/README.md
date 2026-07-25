@@ -55,6 +55,7 @@ type LegacyAppMethods = {
 interface LegacyAppEvents {
   onResume: void;
   onPause: void;
+  onImageChooserResult: string;
 }
 
 const legacyAppBridge = PrettyJsBridge.register<
@@ -168,6 +169,21 @@ methods: {
 }
 ```
 
+当固定 callback 同时也是业务事件时，把同一个路径注册成 event：
+
+```ts
+events: {
+  onImageChooserResult: true,
+}
+
+const off = legacyAppBridge.$on(
+  'onImageChooserResult',
+  imageUrl => console.log(imageUrl),
+);
+```
+
+原生调用 `window.onImageChooserResult(imageUrl)` 时只进行一次事件派发：业务 `$on` 监听会执行，`showImageChooser()` 的 Promise 则通过内部一次性监听 resolve。method 调用期间不会覆盖 event 的全局函数。
+
 业务层不再重复声明固定名称，直接调用类型方法：
 
 ```ts
@@ -176,7 +192,7 @@ const imageUrl = await legacyAppBridge.showImageChooser();
 const chatList = await legacyAppBridge.getChatList();
 ```
 
-`callbackName` 会让 bridge 安装 native 可见的全局 callback，并把名字作为 `message.nativeCallbackName` 交给 transport。legacy adapter 只需把它写入旧 payload 的 `callBackName`。
+`callbackName` 会把名字作为 `message.nativeCallbackName` 交给 transport，legacy adapter 只需把它写入旧 payload 的 `callBackName`。没有匹配 event 时，bridge 临时安装该全局 callback；匹配已注册 event 路径时，bridge 复用 event 入口。
 
 某一次调用需要临时使用其他名称时，仍可覆盖注册值：
 
@@ -187,7 +203,7 @@ const titleBar =
   );
 ```
 
-优先级是单次 `.withCallback(name)`、方法 `callbackName`、最后不发送 `nativeCallbackName`。native 调用对应全局函数后 Promise 会 resolve；完成、超时或 `$destroy()` 时 callback 都会被恢复或移除。
+优先级是单次 `.withCallback(name)`、方法 `callbackName`、最后不发送 `nativeCallbackName`。native 调用对应全局函数后 Promise 会 resolve。临时 callback 会在完成、超时或 `$destroy()` 时恢复或移除；复用 event 时只移除内部一次性监听，event 全局函数保留到 `$destroy()`。
 
 这个机制保持了旧 native 行为。不过同一个静态 callback 名不适合同时发起多个并发请求；原来的 EventBus `once` 实现也有相同约束。若未来 native 能升级，建议改用每次请求唯一的 `$callbackId/$callbackName`。
 

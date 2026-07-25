@@ -139,6 +139,7 @@ export class UnsupportedBridgeMethodError extends Error {
 
 class BridgeRuntime {
   private readonly listeners = new Map<string, Set<Listener>>();
+  private readonly eventNamesByPath = new Map<string, string>();
   private readonly handlers = new Map<string, Handler>();
   private readonly pending = new Map<string, PendingCall>();
   private readonly uninstallers: Array<() => void> = [];
@@ -337,15 +338,21 @@ class BridgeRuntime {
             : parsed;
         this.settle(callbackId, true, parseNativeMessage(data));
       });
+      const callbackEventName = resolvedNativeCallbackName
+        ? this.eventNamesByPath.get(resolvedNativeCallbackName)
+        : undefined;
+      const forwardNativeResponse = (value: unknown) => {
+        const callback = getAtPath(callbackName);
+        if (typeof callback === 'function') {
+          (callback as (response: unknown) => void)(value);
+        }
+      };
       const cleanupNativeCallback =
         resolvedNativeCallbackName &&
         resolvedNativeCallbackName !== callbackName
-          ? installAtPath(resolvedNativeCallbackName, (value: unknown) => {
-              const callback = getAtPath(callbackName);
-              if (typeof callback === 'function') {
-                (callback as (response: unknown) => void)(value);
-              }
-            })
+          ? callbackEventName
+            ? this.once(callbackEventName, forwardNativeResponse)
+            : installAtPath(resolvedNativeCallbackName, forwardNativeResponse)
           : () => undefined;
       const timeout = config.timeout ?? this.options.timeout;
       const pending: PendingCall = {
@@ -553,6 +560,7 @@ class BridgeRuntime {
     >;
     for (const [name, configured] of Object.entries(eventConfigs)) {
       const path = configured === true ? name : (configured.path ?? name);
+      this.eventNamesByPath.set(path, name);
       this.uninstallers.push(
         installAtPath(path, (data: unknown) =>
           this.dispatch({

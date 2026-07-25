@@ -327,7 +327,7 @@ callback 名的优先级为：
 2. 方法配置的 `callbackName`。
 3. 两者都没有时，不设置 `message.nativeCallbackName`。
 
-使用固定 callback 时，库会安装对应的 native 可见全局函数，在 request 中提供 `nativeCallbackName`，并在 callback 执行、超时或实例销毁后恢复原值或清理路径。自定义 transport 可以把它转换成旧协议的 `callBackName`。
+使用固定 callback 时，request 会提供 `nativeCallbackName`，自定义 transport 可以把它转换成旧协议的 `callBackName`。若该路径没有注册为 event，库会临时安装 native 可见全局函数，并在 callback 执行、超时或实例销毁后恢复原值或清理路径；若该路径与已注册 event 的路径相同，库会保留 event 全局函数，只派发一次事件，并通过内部一次性监听完成 method Promise。业务 `$on` 监听与 method Promise 会收到同一份结果。
 
 同一个静态 callback 名不适合并发调用；支持升级 native 时应优先使用库生成的唯一 `$callbackName`。
 
