@@ -1,6 +1,7 @@
 import type {
   BridgeEnvelope,
   BridgeEnvironment,
+  BridgeEventProtocol,
   BridgeLogger,
   BridgeMethodProtocol,
   BridgeSchema,
@@ -9,6 +10,7 @@ import type {
   InferredRegisteredBridge,
   MethodConfig,
   MethodSupportMap,
+  MethodTarget,
   NativeMessage,
   ProtocolRegistrar,
   RegisterOptions,
@@ -51,9 +53,12 @@ export class PrettyJsBridge {
    * @zh 先声明部分函数协议，再通过返回函数注册配置。
    *
    * @typeParam S @en Known method function signatures. @zh 已知方法的函数签名。
+   * @typeParam E @en Event names mapped to payload types. @zh 事件名到 payload 类型的映射。
    */
-  static register<S extends BridgeMethodProtocol>():
-    ProtocolRegistrar<S>;
+  static register<
+    S extends BridgeMethodProtocol,
+    E extends BridgeEventProtocol = {},
+  >(): ProtocolRegistrar<S, E>;
 
   /**
    * @en Infers the API directly from configuration keys without a generic.
@@ -430,7 +435,7 @@ class BridgeRuntime {
 
   private send(
     message: BridgeEnvelope | HandlerResultEnvelope,
-    target?: string,
+    target?: MethodTarget,
     transportName?: string,
   ): void {
     let available = this.options.transports.filter(
@@ -450,13 +455,19 @@ class BridgeRuntime {
     if ((this.options.transportMode ?? 'first') === 'first') {
       available = available.slice(0, 1);
     }
+    const defaultTarget =
+      message.type === 'request' ? message.method : message.handler;
     for (const transport of available) {
+      const resolvedTarget =
+        typeof target === 'string'
+          ? target
+          : (target?.[transport.platform] ?? defaultTarget);
       this.log('Sending bridge message.', {
         message,
-        target,
+        target: resolvedTarget,
         transport: transport.name,
       });
-      transport.send(message, target);
+      transport.send(message, resolvedTarget);
     }
   }
 

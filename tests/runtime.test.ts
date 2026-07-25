@@ -224,6 +224,70 @@ describe('registration inference runtime', () => {
     });
     await expect(result).resolves.toEqual({ accepted: true });
   });
+
+  it('maps one public method to platform-specific native targets', async () => {
+    const googlePay = vi.fn();
+    const iOSPay = vi.fn();
+    const fallbackSend = vi.fn();
+    (globalThis as Record<string, unknown>).androidJsObj = {
+      googlePay,
+    };
+    (globalThis as Record<string, unknown>).webkit = {
+      messageHandlers: {
+        iOSPay: { postMessage: iOSPay },
+      },
+    };
+
+    type PaymentProtocol = {
+      methods: {
+        pay: BridgeMethod<
+          { amount: number },
+          { accepted: boolean }
+        >;
+      };
+    };
+
+    const bridge = PrettyJsBridge.register<PaymentProtocol>({
+      methods: {
+        pay: {
+          target: {
+            android: 'googlePay',
+            ios: 'iOSPay',
+          },
+        },
+      },
+      transports: [
+        androidTransport({ mode: 'method' }),
+        iosTransport({ mode: 'method' }),
+        customTransport({
+          name: 'fallback-platform',
+          send: fallbackSend,
+        }),
+      ],
+      transportMode: 'broadcast',
+    });
+
+    const result = bridge.pay({ amount: 12 });
+    const androidMessage = JSON.parse(
+      googlePay.mock.calls[0]![0] as string,
+    ) as BridgeEnvelope;
+    const iosMessage = iOSPay.mock.calls[0]![0] as BridgeEnvelope;
+
+    expect(androidMessage.method).toBe('pay');
+    expect(iosMessage.method).toBe('pay');
+    expect(fallbackSend).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'pay' }),
+      'pay',
+    );
+    expect(androidMessage.$callbackId).toBe(iosMessage.$callbackId);
+
+    await bridge.$dispatch({
+      type: 'response',
+      $callbackId: androidMessage.$callbackId,
+      data: { accepted: true },
+    });
+    await expect(result).resolves.toEqual({ accepted: true });
+  });
 });
 
 describe('platform version support', () => {

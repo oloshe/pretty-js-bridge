@@ -1,19 +1,15 @@
 import {
   PrettyJsBridge,
   customTransport,
-  type BridgeEvent,
 } from '../../src/public';
 
-type EventProtocol = {
-  methods: {};
-  events: {
-    pause: BridgeEvent<{ timestamp: number }>;
-    networkChanged: BridgeEvent<{ online: boolean }>;
-    themeChanged: BridgeEvent<{ theme: 'light' | 'dark' }>;
-  };
+type EventPayloads = {
+  pause: { timestamp: number };
+  networkChanged: { online: boolean };
+  themeChanged: { theme: 'light' | 'dark' };
 };
 
-export const eventBridge = PrettyJsBridge.register<EventProtocol>({
+export const eventBridge = PrettyJsBridge.register<{}, EventPayloads>()({
   methods: {},
   events: {
     pause: { path: 'onPause' },

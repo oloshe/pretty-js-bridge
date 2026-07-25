@@ -95,6 +95,12 @@ export type BridgeMethodProtocol = Record<
 >;
 
 /**
+ * @en Payload map for events declared alongside a function-style method protocol.
+ * @zh 与函数式方法协议一起声明的事件 payload 映射。
+ */
+export type BridgeEventProtocol = object;
+
+/**
  * @en Standard method request passed from H5 to a transport.
  * @zh H5 方法调用发送给 transport 的标准请求消息。
  */
@@ -328,6 +334,14 @@ export interface MethodFallbackContext {
 }
 
 /**
+ * @en Native target name or target names selected by transport platform.
+ * @zh native 方法名，或按 transport 平台选择的 native 方法名映射。
+ */
+export type MethodTarget = string | Readonly<
+  Partial<Record<BridgePlatform, string>>
+>;
+
+/**
  * @en Runtime configuration for one bridge method.
  * @zh 单个 bridge 方法的运行时配置。
  *
@@ -337,10 +351,10 @@ export interface MethodConfig<
   M extends BridgeMethod<any, any> = BridgeMethod<any, any>,
 > {
   /**
-   * @en Native method name; defaults to the schema method key.
-   * @zh native 方法名；默认使用 schema 方法 key。
+   * @en Native method name or per-platform names; defaults to the schema method key.
+   * @zh native 方法名或按平台配置的方法名；默认使用 schema 方法 key。
    */
-  target?: string;
+  target?: MethodTarget;
   /**
    * @en Selects one named transport for this method.
    * @zh 为该方法指定一个 transport 名称。
@@ -712,18 +726,28 @@ type ProtocolMethodConfigs<S extends BridgeMethodProtocol> = {
   [K in keyof S]: MethodConfig | true;
 } & Record<string, MethodConfig | true>;
 
+type ProtocolEventConfigs<E extends BridgeEventProtocol> = {
+  [K in keyof E]?: EventConfig | true;
+} & Record<string, EventConfig | true>;
+
 /**
  * @en Partial function-protocol options; `methods` may contain extra keys.
  * @zh 部分函数协议的注册选项；`methods` 可包含协议外的额外 key。
  */
 export type ProtocolRegisterOptions<
   S extends BridgeMethodProtocol,
-> = Omit<InferredRegisterOptions, 'methods'> & {
+  E extends BridgeEventProtocol = {},
+> = Omit<InferredRegisterOptions, 'methods' | 'events'> & {
   /**
    * @en Known method configs plus extra methods declared at the call site.
    * @zh 已知方法配置与调用处新增的方法配置。
    */
   methods: ProtocolMethodConfigs<S>;
+  /**
+   * @en Typed event configs plus extra events declared at the call site.
+   * @zh 已声明类型的事件配置与调用处新增的事件配置。
+   */
+  events?: ProtocolEventConfigs<E>;
 };
 
 type InferredSchema<O extends InferredRegisterOptions> = {
@@ -793,15 +817,34 @@ type ProtocolInvoke<
   >;
 };
 
+type ProtocolEvents<
+  E extends BridgeEventProtocol,
+  O extends InferredRegisterOptions,
+> = {
+  [K in keyof E]: BridgeEvent<E[K]>;
+} & (O extends { events: infer Configs }
+  ? {
+      [K in Exclude<keyof Configs, keyof E>]: BridgeEvent<unknown>;
+    }
+  : {});
+
+type ProtocolSchema<
+  E extends BridgeEventProtocol,
+  O extends InferredRegisterOptions,
+> = Omit<InferredSchema<O>, 'events'> & {
+  events: ProtocolEvents<E, O>;
+};
+
 /**
  * @en Bridge returned from partial function-protocol registration.
  * @zh 部分函数协议注册后得到的 bridge。
  */
 export type ProtocolRegisteredBridge<
   S extends BridgeMethodProtocol,
-  O extends ProtocolRegisterOptions<S>,
+  E extends BridgeEventProtocol,
+  O extends ProtocolRegisterOptions<S, E>,
 > = ProtocolTypedMethods<S, O> &
-  Omit<BridgeControls<InferredSchema<O>>, '$invoke'> &
+  Omit<BridgeControls<ProtocolSchema<E, O>>, '$invoke'> &
   ProtocolInvoke<S, O>;
 
 /**
@@ -812,6 +855,7 @@ export type ProtocolRegisteredBridge<
  */
 export type ProtocolRegistrar<
   S extends BridgeMethodProtocol,
-> = <const O extends ProtocolRegisterOptions<S>>(
+  E extends BridgeEventProtocol = {},
+> = <const O extends ProtocolRegisterOptions<S, E>>(
   options: O,
-) => ProtocolRegisteredBridge<S, O>;
+) => ProtocolRegisteredBridge<S, E, O>;

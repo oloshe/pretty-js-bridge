@@ -19,6 +19,10 @@ type AppProtocol = {
       { userId: string },
       { id: string; nickname: string }
     >;
+    pay: BridgeMethod<
+      { amount: number; currency: string },
+      { transactionId: string }
+    >;
   };
 };
 
@@ -27,10 +31,16 @@ export const appBridge = PrettyJsBridge.register<AppProtocol>({
     openPage: true,
     closePage: { target: 'closeNativePage' },
     getUser: { timeout: 5_000 },
+    pay: {
+      target: {
+        android: 'googlePay',
+        ios: 'iOSPay',
+      },
+    },
   },
   transports: [
-    iosTransport(),
-    androidTransport(),
+    iosTransport({ mode: 'method' }),
+    androidTransport({ mode: 'method' }),
     flutterTransport({
       name: 'flutter-channel',
       channel: 'h5ToNative',
@@ -60,6 +70,14 @@ export async function openUserPage(): Promise<string> {
 
 export async function closeCurrentPage(): Promise<void> {
   await appBridge.closePage();
+}
+
+export async function pay(): Promise<string> {
+  const result = await appBridge.pay({
+    amount: 12,
+    currency: 'USD',
+  });
+  return result.transactionId;
 }
 
 // These examples intentionally remain commented because they are compile errors:

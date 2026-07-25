@@ -114,12 +114,28 @@ void inferredBridge.missing();
 // @ts-expect-error $invoke also restricts names to configured keys
 void inferredBridge.$invoke('missing');
 
+interface PaymentEvents {
+  paymentChanged: {
+    status: 'success' | 'failed';
+    transactionId: string;
+  };
+}
+
 const partiallyTypedBridge = PrettyJsBridge.register<{
   a: (value: number) => void;
-}>()({
+}, PaymentEvents>()({
   methods: {
-    a: true,
+    a: {
+      target: {
+        android: 'googlePay',
+        ios: 'iOSPay',
+      },
+    },
     b: true,
+  },
+  events: {
+    paymentChanged: true,
+    inferredEvent: true,
   },
   transports: [inferenceTransport],
 });
@@ -130,8 +146,24 @@ const extraResult: Promise<unknown> =
   partiallyTypedBridge.b('value', 2);
 void declaredResult;
 void extraResult;
+partiallyTypedBridge.$on('paymentChanged', (payload) => {
+  const status: 'success' | 'failed' = payload.status;
+  const transactionId: string = payload.transactionId;
+  void status;
+  void transactionId;
+});
+partiallyTypedBridge.$once('inferredEvent', (payload) => {
+  const inferredPayload: unknown = payload;
+  void inferredPayload;
+});
 
 // @ts-expect-error declared methods keep their parameter types
 void partiallyTypedBridge.a('wrong');
 // @ts-expect-error unconfigured extra methods are not exposed
 void partiallyTypedBridge.c();
+// @ts-expect-error declared event payloads are checked
+partiallyTypedBridge.$on('paymentChanged', (payload: { status: number }) => {
+  void payload;
+});
+// @ts-expect-error unconfigured and undeclared events are not exposed
+partiallyTypedBridge.$on('missingEvent', () => undefined);

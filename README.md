@@ -16,6 +16,8 @@
 - `$callbackId`、全局 `$callbackName`、超时、销毁与清理
 - 按平台和 App 版本声明方法支持范围，并提供类型安全的 fallback
 - 支持从 `methods` 配置推断方法，也支持“部分严格协议 + 额外未知方法”
+- 函数式协议支持第二泛型声明事件 payload，`$on` / `$once` 按事件名推断 listener
+- 同一个公共方法可按 Android、iOS 等 transport 平台映射到不同 native 方法
 
 完整场景教程见 [`examples/`](./examples/)：包括类型安全的平台调用、事件与回调路径、native handlers、自定义 transport、生命周期和可运行的 Flutter WebView App。
 
@@ -211,6 +213,34 @@ bridge.b('value', 2); // Promise<unknown>
 ```
 
 `a` 的参数保持严格检查，`b` 来自注册配置，未配置的其他名字仍然报错。完整教程见 [`examples/01-typed-platform-calls`](./examples/01-typed-platform-calls/)。
+
+### 用第二泛型声明事件
+
+函数式协议的第二泛型把事件名直接映射到 payload 类型：
+
+```ts
+type AppEvents = {
+  paymentChanged: {
+    status: 'success' | 'failed';
+    transactionId: string;
+  };
+};
+
+const bridge = PrettyJsBridge.register<{
+  pay: (amount: number) => { transactionId: string };
+}, AppEvents>()({
+  methods: { pay: true },
+  events: { paymentChanged: true },
+  transports: [transport],
+});
+
+bridge.$on('paymentChanged', (payload) => {
+  payload.status;        // 'success' | 'failed'
+  payload.transactionId; // string
+});
+```
+
+`$on` 和 `$once` 只接受已声明或注册配置中出现的事件名。已声明事件的 listener 参数使用对应 payload；只在配置中新增的事件保持 `unknown`。完整教程见 [`examples/02-events-and-callback-paths`](./examples/02-events-and-callback-paths/)。
 
 旧宿主要求 H5 在每次调用时提供静态 callback 名时，直接使用方法上的 `withCallback`：
 
@@ -454,6 +484,21 @@ methods: {
     target: 'openNativePage',
   },
 }
+
+同一个公共方法需要在不同平台调用不同 native 方法时，给 `target` 传平台映射：
+
+```ts
+methods: {
+  pay: {
+    target: {
+      android: 'googlePay',
+      ios: 'iOSPay',
+    },
+  },
+}
+```
+
+配合 Android / iOS 的 `mode: 'method'` 后，`bridge.pay()` 会分别调用 `googlePay` 或 `iOSPay`。request 消息里的 `method` 仍是公共名称 `pay`；只有传给 transport 的 target 会按 `transport.platform` 变化。映射缺少当前平台时，target 回退为公共方法名。
 ```
 
 多个宿主桥需要同时收到消息时，设置 `transportMode: 'broadcast'`；默认的 `first` 只使用数组中第一个可用 transport。

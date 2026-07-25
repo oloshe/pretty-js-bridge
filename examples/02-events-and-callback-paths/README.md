@@ -2,7 +2,29 @@
 
 这个示例展示 native 主动通知 H5 的三种入口，以及 `$on`/`$once` 发布订阅。
 
-## 1. 直接挂到 window
+## 1. 用第二泛型声明事件
+
+函数式协议的第一个泛型声明 H5 调用 native 的方法，第二个泛型直接把事件名映射到 payload 类型：
+
+```ts
+type EventPayloads = {
+  pause: { timestamp: number };
+  networkChanged: { online: boolean };
+};
+
+const eventBridge = PrettyJsBridge.register<{}, EventPayloads>()({
+  methods: {},
+  events: {
+    pause: { path: 'onPause' },
+    networkChanged: true,
+  },
+  transports: [transport],
+});
+```
+
+调用 `$on('pause', listener)` 或 `$once('pause', listener)` 时，listener 参数会自动推断为 `{ timestamp: number }`；未声明且未配置的事件名会产生 TypeScript 错误。这里只演示事件，因此 methods 泛型使用 `{}`。
+
+## 2. 直接挂到 window
 
 ```ts
 events: {
@@ -33,7 +55,7 @@ const off = eventBridge.$on(
 off();
 ```
 
-## 2. 嵌套对象路径
+## 3. 嵌套对象路径
 
 ```ts
 networkChanged: {
@@ -51,7 +73,7 @@ window.androidJsObj.onNetworkChanged(
 
 对象参数和 JSON 字符串都可以被接收。
 
-## 3. 统一 callJsBridge
+## 4. 统一 callJsBridge
 
 注册入口：
 
@@ -75,7 +97,7 @@ window.callJsBridge({
 await eventBridge.$dispatch(message);
 ```
 
-## 4. 生命周期
+## 5. 生命周期
 
 - `$on` 每次事件都执行，返回取消函数。
 - `$once` 只执行一次，随后自动取消。

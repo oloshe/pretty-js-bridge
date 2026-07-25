@@ -41,11 +41,17 @@ methods: {
   getUser: {
     timeout: 5_000,
   },
+  pay: {
+    target: {
+      android: 'googlePay',
+      ios: 'iOSPay',
+    },
+  },
 }
 ```
 
 - `true`：native target 与协议方法名相同。
-- `target`：映射到不同的 native 方法名。
+- `target`：传字符串时映射到统一的 native 方法名；传平台映射时按当前 transport 选择方法名。
 - `timeout`：覆盖注册实例的默认超时时间。
 
 logger 也在 `register()` 中配置。省略时库默认调用 `console.log`；传入自定义函数后，注册、方法调用、transport 发送、native 回调/消息、handler、Promise 结算和销毁日志都会交给该函数，日志消息为英文：
@@ -139,4 +145,6 @@ iosTransport({
 });
 ```
 
+
+示例中的统一业务方法 `appBridge.pay()` 会在 Android method mode 调用 `googlePay`，在 iOS method mode 调用 `iOSPay`。request 消息里的 `method` 仍然是公共名称 `pay`；只有 transport 收到的 target 会按平台变化。映射中没有当前平台时，target 回退为公共方法名。
 完整代码见 [`example.ts`](./example.ts)。
