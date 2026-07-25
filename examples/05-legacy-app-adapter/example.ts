@@ -1,8 +1,6 @@
 import {
   PrettyJsBridge,
   customTransport,
-  type BridgeEvent,
-  type BridgeMethod,
 } from '../../src/public';
 
 interface TitleBarOptions {
@@ -24,24 +22,31 @@ interface ChatUser {
   avatar: string;
 }
 
-type LegacyAppProtocol = {
-  methods: {
-    closeWebView: BridgeMethod<void, void>;
-    updateWebview: BridgeMethod<{ isBounces: 1 | 0 }, void>;
-    updateTitleBar: BridgeMethod<TitleBarOptions, void>;
-    callRouter: BridgeMethod<{ router: `example-app://${string}` }, void>;
-    getTitleBar: BridgeMethod<void, { statusBarHeight: number }>;
-    showImageChooser: BridgeMethod<void, string>;
-    getChatList: BridgeMethod<void, ChatUser[]>;
-    base64ToImage: BridgeMethod<{ base64Data: string }, void>;
-  };
-  events: {
-    onResume: BridgeEvent<void>;
-    onPause: BridgeEvent<void>;
-    shareInfo: BridgeEvent<void>;
-    memoryWarning: BridgeEvent<void>;
-  };
+interface CountryRegion {
+  countryCode: string;
+  flagUrl: string;
+  nameI18n: Record<string, string>;
+  phoneCode: string;
+}
+
+type LegacyAppMethods = {
+  closeWebView: () => void;
+  updateWebView: (params: { isBounces: 1 | 0 }) => void;
+  updateTitleBar: (params: TitleBarOptions) => void;
+  callRouter: (params: { router: `example-app://${string}` }) => void;
+  getTitleBar: () => { statusBarHeight: number };
+  showImageChooser: () => string;
+  getChatList: () => ChatUser[];
+  getCountryRegionList: () => CountryRegion[];
+  base64ToImage: (params: { base64Data: string }) => void;
 };
+
+interface LegacyAppEvents {
+  onResume: void;
+  onPause: void;
+  shareInfo: void;
+  memoryWarning: void;
+}
 
 interface LegacyBridgePayload {
   actionName: string;
@@ -118,11 +123,37 @@ const environment = {
   version: query.get('appVersion') ?? '0.0.0',
 };
 
-export const legacyAppBridge = PrettyJsBridge.register<LegacyAppProtocol>({
+const COUNTRY_REGION_LIST_STORAGE_KEY =
+  'example-app:country-region-list';
+
+const readCachedCountryRegionList = (): CountryRegion[] | undefined => {
+  const cachedList = localStorage.getItem(
+    COUNTRY_REGION_LIST_STORAGE_KEY,
+  );
+  if (!cachedList) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(cachedList);
+    return Array.isArray(parsed)
+      ? parsed as CountryRegion[]
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const legacyAppBridge = PrettyJsBridge.register<
+  LegacyAppMethods,
+  LegacyAppEvents
+>()({
   environment,
   methods: {
     closeWebView: { target: 'closeWebPage' },
-    updateWebview: { target: 'updateWebView' },
+    updateWebView: {
+      target: 'updateWebView',
+      presets: {
+        noBounces: { isBounces: 0 },
+      },
+    },
     updateTitleBar: true,
     callRouter: true,
     getTitleBar: {
@@ -140,6 +171,11 @@ export const legacyAppBridge = PrettyJsBridge.register<LegacyAppProtocol>({
       target: 'getChatList',
       callbackName: 'onChatListResult',
     },
+    getCountryRegionList: {
+      callbackName: 'onCountryRegionListResult',
+      hook: (_params, invokeNative) =>
+        readCachedCountryRegionList() ?? invokeNative(),
+    },
     base64ToImage: true,
   },
   events: {
@@ -155,9 +191,12 @@ export const legacyAppBridge = PrettyJsBridge.register<LegacyAppProtocol>({
 export const closeWebView = (): Promise<void> =>
   legacyAppBridge.closeWebView();
 
-export const updateWebview = (
+export const updateWebView = (
   params: { isBounces: 1 | 0 },
-): Promise<void> => legacyAppBridge.updateWebview(params);
+): Promise<void> => legacyAppBridge.updateWebView(params);
+
+export const disableWebViewBounces = (): Promise<void> =>
+  legacyAppBridge.updateWebView.noBounces();
 
 export const updateTitleBar = (
   options: TitleBarOptions,
@@ -179,6 +218,9 @@ export const showImageChooser = (): Promise<string> =>
 
 export const getChatListByNative = (): Promise<ChatUser[]> =>
   legacyAppBridge.getChatList();
+
+export const getCountryRegionList = (): Promise<CountryRegion[]> =>
+  legacyAppBridge.getCountryRegionList();
 
 export const onResume = (
   callback: () => void,

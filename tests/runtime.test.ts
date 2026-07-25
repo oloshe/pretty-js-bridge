@@ -216,6 +216,105 @@ describe('PrettyJsBridge', () => {
 });
 
 describe('registration inference runtime', () => {
+  it('exposes configured presets and lets a hook choose local or native results', async () => {
+    type AppMethods = {
+      updateWebView: (params: { isBounces: 1 | 0 }) => void;
+      getCountryRegionList: () => Array<{ countryCode: string }>;
+    };
+
+    const requests: BridgeEnvelope[] = [];
+    let useLocalList = true;
+    const bridge = PrettyJsBridge.register<AppMethods>()({
+      methods: {
+        updateWebView: {
+          presets: {
+            noBounces: { isBounces: 0 },
+          },
+        },
+        getCountryRegionList: {
+          hook: (_params, invokeNative) =>
+            useLocalList
+              ? [{ countryCode: 'LOCAL' }]
+              : invokeNative(),
+        },
+      },
+      transports: [
+        customTransport({
+          name: 'presets-and-hooks',
+          send: (message) => {
+            if (message.type !== 'request') return;
+            requests.push(message);
+            const callback = message.$callbackName
+              .split('.')
+              .reduce<unknown>(
+                (value, key) =>
+                  (value as Record<string, unknown>)[key],
+                globalThis,
+              ) as (value?: unknown) => void;
+            callback(
+              message.method === 'getCountryRegionList'
+                ? [{ countryCode: 'NATIVE' }]
+                : undefined,
+            );
+          },
+        }),
+      ],
+    });
+
+    await expect(bridge.updateWebView.noBounces()).resolves.toBeUndefined();
+    expect(requests[0]).toEqual(
+      expect.objectContaining({
+        method: 'updateWebView',
+        params: { isBounces: 0 },
+      }),
+    );
+
+    await expect(bridge.getCountryRegionList()).resolves.toEqual([
+      { countryCode: 'LOCAL' },
+    ]);
+    expect(requests).toHaveLength(1);
+
+    useLocalList = false;
+    await expect(bridge.getCountryRegionList()).resolves.toEqual([
+      { countryCode: 'NATIVE' },
+    ]);
+    expect(requests[1]?.method).toBe('getCountryRegionList');
+
+    const hookError = new Error('local lookup failed');
+    const failingBridge = PrettyJsBridge.register<AppMethods>()({
+      methods: {
+        updateWebView: true,
+        getCountryRegionList: {
+          hook: () => {
+            throw hookError;
+          },
+        },
+      },
+      transports: [
+        customTransport({ name: 'unused', send: () => undefined }),
+      ],
+    });
+    await expect(failingBridge.getCountryRegionList()).rejects.toBe(
+      hookError,
+    );
+
+    expect(() =>
+      PrettyJsBridge.register<AppMethods>()({
+        methods: {
+          updateWebView: {
+            presets: {
+              withCallback: { isBounces: 0 },
+            },
+          },
+          getCountryRegionList: true,
+        },
+        transports: [
+          customTransport({ name: 'unused', send: () => undefined }),
+        ],
+      }),
+    ).toThrow('Bridge preset "updateWebView.withCallback" is reserved.');
+  });
+
   it('registers inferred method keys and serializes multiple unknown arguments', async () => {
     let request: BridgeEnvelope | undefined;
     const bridge = PrettyJsBridge.register({

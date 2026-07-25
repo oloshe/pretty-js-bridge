@@ -270,13 +270,21 @@ type ParamsOf<T> = T extends BridgeMethod<infer P, any>
   ? P
   : T extends BridgeHandler<infer P, any>
     ? P
-    : never;
+    : T extends (...args: infer A) => unknown
+      ? A extends []
+        ? void
+        : A extends [infer P]
+          ? P
+          : A
+      : never;
 
 type ResultOf<T> = T extends BridgeMethod<any, infer R>
   ? R
   : T extends BridgeHandler<any, infer R>
     ? R
-    : never;
+    : T extends (...args: never[]) => infer R
+      ? Awaited<R>
+      : never;
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -345,11 +353,9 @@ export type MethodTarget = string | Readonly<
  * @en Runtime configuration for one bridge method.
  * @zh 单个 bridge 方法的运行时配置。
  *
- * @typeParam M @en Associated `BridgeMethod` declaration. @zh 对应的 `BridgeMethod` 声明。
+ * @typeParam M @en Associated method declaration. @zh 对应的方法声明。
  */
-export interface MethodConfig<
-  M extends BridgeMethod<any, any> = BridgeMethod<any, any>,
-> {
+export interface MethodConfig<M = BridgeMethod<any, any>> {
   /**
    * @en Native method name or per-platform names; defaults to the schema method key.
    * @zh native 方法名或按平台配置的方法名；默认使用 schema 方法 key。
@@ -371,6 +377,23 @@ export interface MethodConfig<
    */
   timeout?: number;
   /**
+   * @en Named zero-argument calls that reuse this method with fixed parameters.
+   * @zh 复用当前方法并固定参数的命名零参调用。
+   */
+  presets?: Readonly<Record<string, ParamsOf<M>>>;
+  /**
+   * @en Intercepts a call and decides whether to return locally or continue to native.
+   * @zh 拦截调用，由闭包决定本地返回或继续调用 native。
+   *
+   * @param params @en Serialized parameters of this call. @zh 本次调用的序列化参数。
+   * @param invokeNative @en Continues through support checks, fallback, callbacks, and transport.
+   * @zh 继续执行版本检查、fallback、回调和 transport。
+   */
+  hook?: (
+    params: ParamsOf<M>,
+    invokeNative: () => Promise<Awaited<ResultOf<M>>>,
+  ) => MaybePromise<Awaited<ResultOf<M>>>;
+  /**
    * @en Minimum version per platform; `true` allows all versions and omitted platforms are unsupported.
    * @zh 各平台最低支持版本；`true` 表示全部版本，未列出则不支持。
    */
@@ -385,7 +408,7 @@ export interface MethodConfig<
   fallback?: (
     params: ParamsOf<M>,
     context: MethodFallbackContext,
-  ) => MaybePromise<ResultOf<M>>;
+  ) => MaybePromise<Awaited<ResultOf<M>>>;
 }
 
 /**
@@ -728,8 +751,23 @@ export type RegisteredBridge<S extends BridgeSchema> = TypedBridgeMethods<S> &
   BridgeControls<S>;
 
 type ProtocolMethodConfigs<S extends BridgeMethodProtocol> = {
-  [K in keyof S]: MethodConfig | true;
+  [K in keyof S]: MethodConfig<S[K]> | true;
 } & Record<string, MethodConfig | true>;
+
+type PresetsOf<C> = C extends { readonly presets: infer P }
+  ? P
+  : {};
+
+type PresetBridgeMethod<Result> = () => Promise<Awaited<Result>>;
+
+type BridgeMethodWithPresets<
+  Method,
+  Result,
+  Config,
+> = Method & {
+  readonly [K in Extract<keyof PresetsOf<Config>, string>]:
+    PresetBridgeMethod<Result>;
+};
 
 type ProtocolEventConfigs<E extends BridgeEventProtocol> = {
   [K in keyof E]?: EventConfig | true;
@@ -774,7 +812,11 @@ type InferredSchema<O extends InferredRegisterOptions> = {
 export type InferredRegisteredBridge<
   O extends InferredRegisterOptions,
 > = {
-  readonly [K in keyof O['methods']]: UnknownTypedBridgeMethod;
+  readonly [K in keyof O['methods']]: BridgeMethodWithPresets<
+    UnknownTypedBridgeMethod,
+    unknown,
+    O['methods'][K]
+  >;
 } & Omit<BridgeControls<InferredSchema<O>>, '$invoke'> & {
     /**
      * @en Invokes native by an inferred method name.
@@ -795,8 +837,16 @@ type ProtocolTypedMethods<
 > = {
   readonly [K in keyof O['methods']]:
     K extends keyof S
-      ? PromisifiedProtocolMethod<S[K]>
-      : UnknownTypedBridgeMethod;
+      ? BridgeMethodWithPresets<
+          PromisifiedProtocolMethod<S[K]>,
+          ReturnType<S[K]>,
+          O['methods'][K]
+        >
+      : BridgeMethodWithPresets<
+          UnknownTypedBridgeMethod,
+          unknown,
+          O['methods'][K]
+        >;
 };
 
 type ProtocolInvoke<

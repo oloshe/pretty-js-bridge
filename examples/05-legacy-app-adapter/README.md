@@ -45,28 +45,29 @@ window.androidJsObj.h5ToNative(
 把散落在 `h5ToNative<T>()` 中的 action 收口成类型：
 
 ```ts
-type LegacyAppProtocol = {
-  methods: {
-    closeWebView: BridgeMethod<void, void>;
-    updateWebview: BridgeMethod<
-      { isBounces: 1 | 0 },
-      void
-    >;
-    getTitleBar: BridgeMethod<
-      void,
-      { statusBarHeight: number }
-    >;
-  };
-  events: {
-    onResume: BridgeEvent<void>;
-    onPause: BridgeEvent<void>;
-  };
+type LegacyAppMethods = {
+  closeWebView: () => void;
+  updateWebView: (params: { isBounces: 1 | 0 }) => void;
+  getTitleBar: () => { statusBarHeight: number };
+  getCountryRegionList: () => CountryRegion[];
 };
+
+interface LegacyAppEvents {
+  onResume: void;
+  onPause: void;
+}
+
+const legacyAppBridge = PrettyJsBridge.register<
+  LegacyAppMethods,
+  LegacyAppEvents
+>()({
+  // methods / events / transports
+});
 ```
 
 以后新增 native action 时，需要同时添加：
 
-1. `LegacyAppProtocol.methods` 类型
+1. `LegacyAppMethods` 方法签名
 2. `register().methods` 中的 action 映射
 3. 对业务暴露的语义化函数
 
@@ -81,8 +82,11 @@ methods: {
   closeWebView: {
     target: 'closeWebPage',
   },
-  updateWebview: {
+  updateWebView: {
     target: 'updateWebView',
+    presets: {
+      noBounces: { isBounces: 0 },
+    },
   },
   getChatList: {
     target: 'getChatList',
@@ -92,7 +96,52 @@ methods: {
 
 transport 中的 `target` 就是最终发送给 native 的 `actionName`。
 
-## 3. 兼容旧的静态回调名
+## 3. 用 presets 收口固定参数方法
+
+旧文件里的 `updateWebview_noBounces()` 只是给 `updateWebView` 固定参数。可以把这个语义直接声明在主方法配置中：
+
+```ts
+updateWebView: {
+  target: 'updateWebView',
+  presets: {
+    noBounces: { isBounces: 0 },
+  },
+}
+```
+
+注册结果会生成类型安全的零参子方法：
+
+```ts
+await legacyAppBridge.updateWebView.noBounces();
+```
+
+它发送的 action 仍是 `updateWebView`，参数仍是 `{ isBounces: 0 }`。同一个方法可以声明多个预设；预设名和固定参数都由 TypeScript 检查。
+
+## 4. 用 hook 决定本地返回还是调用 native
+
+`getCountryRegionList` 需要优先读取本地缓存，缓存不存在或无效时才访问宿主。把这段决策闭包挂在方法配置上：
+
+```ts
+getCountryRegionList: {
+  callbackName: 'onCountryRegionListResult',
+  hook: (_params, invokeNative) =>
+    readCachedCountryRegionList() ?? invokeNative(),
+}
+```
+
+调用方不再需要额外 wrapper 分支：
+
+```ts
+const list = await legacyAppBridge.getCountryRegionList();
+```
+
+- 缓存命中：hook 直接返回列表，不创建 callback，不发送 native 消息。
+- 缓存未命中：hook 调用 `invokeNative()`，继续使用原方法的 callback、timeout、版本 fallback 和 transport。
+- hook 可返回同步值或 Promise；参数和结果必须符合 `LegacyAppMethods` 中的签名。
+
+hook 内不要再次调用 `legacyAppBridge.getCountryRegionList()`，否则会递归进入自身；继续访问宿主必须调用闭包参数 `invokeNative()`。
+
+## 5. 兼容旧的静态回调名
 
 旧 native 不使用 PrettyJsBridge 生成的 `$callbackId`，而是调用固定的全局函数：
 
@@ -148,7 +197,7 @@ native 即使把结果作为 JSON 字符串传给 `onGetTitleBar`，PrettyJsBrid
 export const getTitleBar = () => legacyAppBridge.getTitleBar();
 ```
 
-## 4. 无回调方法
+## 6. 无回调方法
 
 旧代码在没有 `callBackName` 时立即返回：
 
@@ -160,13 +209,13 @@ PrettyJsBridge 的方法调用默认等待响应，所以 adapter 在发送完�
 
 ```ts
 await closeWebView();
-await updateWebview({ isBounces: 0 });
+await legacyAppBridge.updateWebView.noBounces();
 await updateTitleBar({ isTitleHidden: 1 });
 ```
 
 这里的 Promise 表示“消息已交给 JS bridge”，不表示 native 已完成操作。
 
-## 5. 平台版本与旧版本 fallback
+## 7. 平台版本与旧版本 fallback
 
 示例从 URL 和宿主桥识别 `platform`、`appVersion`，并在注册时传入 `environment`。实际项目可以替换成已有的 App 信息来源。
 
@@ -184,7 +233,7 @@ getTitleBar: {
 
 旧 iOS 或 Android 调用该方法时不会发送 native 消息，直接返回 fallback。版本满足要求时使用方法配置的 `callbackName: 'onGetTitleBar'`。
 
-## 6. App 生命周期事件
+## 8. App 生命周期事件
 
 旧的：
 
@@ -213,7 +262,7 @@ off();
 
 native 仍然调用 `window.onPause()`，但事件分发由 PrettyJsBridge 管理。
 
-## 7. 推荐迁移步骤
+## 9. 推荐迁移步骤
 
 1. 在 旧业务应用的 shared 包中引入 `pretty-js-bridge`。
 2. 复制 [`example.ts`](./example.ts) 中的 transport、协议和 register 配置。

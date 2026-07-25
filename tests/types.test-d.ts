@@ -121,6 +121,62 @@ interface PaymentEvents {
   };
 }
 
+type HookedMethods = {
+  updateWebView: (params: { isBounces: 1 | 0 }) => void;
+  getCountryRegionList: () => Array<{ countryCode: string }>;
+};
+
+const hookedBridge = PrettyJsBridge.register<HookedMethods>()({
+  methods: {
+    updateWebView: {
+      presets: {
+        noBounces: { isBounces: 0 },
+      },
+    },
+    getCountryRegionList: {
+      hook: (_params, invokeNative) =>
+        Math.random() > 0.5
+          ? [{ countryCode: 'LOCAL' }]
+          : invokeNative(),
+    },
+  },
+  transports: [inferenceTransport],
+});
+
+const presetResult: Promise<void> =
+  hookedBridge.updateWebView.noBounces();
+const hookedResult: Promise<Array<{ countryCode: string }>> =
+  hookedBridge.getCountryRegionList();
+void presetResult;
+void hookedResult;
+
+// @ts-expect-error only configured preset names are exposed
+void hookedBridge.updateWebView.bounces();
+
+PrettyJsBridge.register<HookedMethods>()({
+  methods: {
+    updateWebView: {
+      presets: {
+        // @ts-expect-error preset params must match the declared method
+        invalid: { isBounces: 2 },
+      },
+    },
+    getCountryRegionList: true,
+  },
+  transports: [inferenceTransport],
+});
+
+PrettyJsBridge.register<HookedMethods>()({
+  methods: {
+    updateWebView: true,
+    getCountryRegionList: {
+      // @ts-expect-error hook results must match the declared method
+      hook: () => [{ countryCode: 1 }],
+    },
+  },
+  transports: [inferenceTransport],
+});
+
 const partiallyTypedBridge = PrettyJsBridge.register<{
   a: (value: number) => void;
 }, PaymentEvents>()({

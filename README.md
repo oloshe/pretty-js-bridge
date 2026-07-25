@@ -19,6 +19,8 @@
 - 函数式协议支持第二泛型声明事件 payload，`$on` / `$once` 按事件名推断 listener
 - 同一个公共方法可按 Android、iOS 等 transport 平台映射到不同 native 方法
 - 支持在逐方法配置中声明固定 `callbackName`，并用 `withCallback()` 单次覆盖
+- 支持为方法配置固定参数的命名 `presets`，生成 `bridge.method.preset()` 零参调用
+- 支持逐方法 `hook(params, invokeNative)`，由业务闭包决定本地返回或继续调用 native
 
 完整场景教程见 [`examples/`](./examples/)：包括类型安全的平台调用、事件与回调路径、native handlers、自定义 transport、生命周期和可运行的 Flutter WebView App。
 
@@ -214,6 +216,56 @@ bridge.b('value', 2); // Promise<unknown>
 ```
 
 `a` 的参数保持严格检查，`b` 来自注册配置，未配置的其他名字仍然报错。完整教程见 [`examples/01-typed-platform-calls`](./examples/01-typed-platform-calls/)。
+
+### 方法 presets 与调用 hook
+
+两段式函数协议注册会从 `presets` 精确推断子方法名称。预设只固定参数，仍复用主方法的 target、callback、版本判断、fallback、timeout 和 transport：
+
+```ts
+type AppMethods = {
+  updateWebView: (params: { isBounces: 1 | 0 }) => void;
+  getCountryRegionList: () => CountryRegion[];
+};
+
+const bridge = PrettyJsBridge.register<AppMethods>()({
+  methods: {
+    updateWebView: {
+      presets: {
+        noBounces: { isBounces: 0 },
+      },
+    },
+    getCountryRegionList: true,
+  },
+  transports: [transport],
+});
+
+await bridge.updateWebView.noBounces();
+// 等价于：
+await bridge.updateWebView({ isBounces: 0 });
+```
+
+`hook` 在 native 调用链之前执行。闭包可以直接返回本地值并短路，也可以调用 `invokeNative()` 继续原有链路：
+
+```ts
+const bridge = PrettyJsBridge.register<AppMethods>()({
+  methods: {
+    updateWebView: true,
+    getCountryRegionList: {
+      hook: (_params, invokeNative) => {
+        const cached = readCachedCountryRegionList();
+        return cached ?? invokeNative();
+      },
+    },
+  },
+  transports: [transport],
+});
+```
+
+hook 返回本地值时，不会创建 callback、timeout 或 transport 消息。调用 `invokeNative()` 后，仍会依次执行 `supportedFrom`、不支持时的 `fallback`、callback 安装和 transport 发送。hook 可以返回同步值或 Promise，参数和返回值由协议自动检查。
+
+不要在 hook 内再次调用 `bridge.getCountryRegionList()`，否则会重新进入同一个 hook；需要访问宿主时调用传入的 `invokeNative()`。
+
+完整的旧业务适配示例见 [`examples/05-legacy-app-adapter`](./examples/05-legacy-app-adapter/)。
 
 ### 用第二泛型声明事件
 

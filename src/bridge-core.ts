@@ -185,6 +185,30 @@ class BridgeRuntime {
         nativeCallbackName: string,
         ...args: unknown[]
       ) => this.invoke(method, nativeCallbackName, ...args);
+      const configured = (
+        this.options.methods as Record<string, true | MethodConfig>
+      )[method];
+      if (configured !== true && configured?.presets) {
+        for (const [presetName, presetParams] of Object.entries(
+          configured.presets,
+        )) {
+          if (presetName in invoke) {
+            const error = new Error(
+              `Bridge preset "${method}.${presetName}" is reserved.`,
+            );
+            this.log('Bridge registration failed.', {
+              method,
+              preset: presetName,
+              error,
+            });
+            throw error;
+          }
+          Object.defineProperty(invoke, presetName, {
+            enumerable: true,
+            value: () => this.invoke(method, undefined, presetParams),
+          });
+        }
+      }
       api[method] = invoke;
     }
     return Object.freeze(api);
@@ -216,6 +240,31 @@ class BridgeRuntime {
     const config = configured === true ? {} : configured;
     const params =
       args.length < 2 ? args[0] : args;
+    const invokeNative = () =>
+      this.invokeNative(
+        name,
+        nativeCallbackName,
+        config,
+        params,
+        args.length > 0,
+      );
+    if (!config.hook) return invokeNative();
+    this.log('Using method hook.', { method: name, params });
+    try {
+      return Promise.resolve(config.hook(params, invokeNative));
+    } catch (error) {
+      this.log('Method hook failed.', { method: name, error });
+      return Promise.reject(error);
+    }
+  }
+
+  private invokeNative(
+    name: string,
+    nativeCallbackName: string | undefined,
+    config: MethodConfig,
+    params: unknown,
+    hasParams: boolean,
+  ): Promise<unknown> {
     if (config.supportedFrom) {
       const environment = this.options.environment;
       if (!environment) {
@@ -263,7 +312,7 @@ class BridgeRuntime {
     if (resolvedNativeCallbackName) {
       envelope.nativeCallbackName = resolvedNativeCallbackName;
     }
-    if (args.length > 0) envelope.params = params;
+    if (hasParams) envelope.params = params;
 
     return new Promise((resolve, reject) => {
       const cleanupCallback = installAtPath(callbackName, (value: unknown) => {
