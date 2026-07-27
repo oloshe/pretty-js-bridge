@@ -27,8 +27,7 @@ export const eventBridge = PrettyJsBridge.register<{}, EventPayloads>()({
   ],
 });
 
-export const stopPauseListener = eventBridge.$on(
-  'pause',
+export const stopPauseListener = eventBridge.$events.pause(
   ({ timestamp }) => {
     console.log('paused at', new Date(timestamp));
   },

@@ -55,6 +55,10 @@ const result: Promise<{ opened: boolean }> = bridge.openPage({ url: '/home' });
 void result;
 void bridge.closePage();
 bridge.$on('pause', (payload) => payload.timestamp.toFixed());
+const stopPause: () => void = bridge.$events.pause((payload) =>
+  payload.timestamp.toFixed(),
+);
+void stopPause;
 bridge.$handle('getToken', async ({ refresh }) => ({
   token: refresh ? 'new' : 'cached',
 }));
@@ -74,6 +78,12 @@ void bridge.openPage({ path: '/home' });
 void bridge.closePage({});
 // @ts-expect-error only declared events can be observed
 bridge.$on('resume', () => undefined);
+// @ts-expect-error only declared events are exposed on $events
+bridge.$events.resume(() => undefined);
+// @ts-expect-error $events listeners use the declared payload
+bridge.$events.pause((payload: { timestamp: string }) => {
+  void payload;
+});
 // @ts-expect-error only declared handlers can be registered
 bridge.$handle('unknown', () => undefined);
 // @ts-expect-error handler result is checked
@@ -213,6 +223,16 @@ partiallyTypedBridge.$once('inferredEvent', (payload) => {
   const inferredPayload: unknown = payload;
   void inferredPayload;
 });
+partiallyTypedBridge.$events.paymentChanged((payload) => {
+  const status: 'success' | 'failed' = payload.status;
+  const transactionId: string = payload.transactionId;
+  void status;
+  void transactionId;
+});
+partiallyTypedBridge.$events.inferredEvent((payload) => {
+  const inferredPayload: unknown = payload;
+  void inferredPayload;
+});
 
 // @ts-expect-error declared methods keep their parameter types
 void partiallyTypedBridge.a('wrong');
@@ -224,3 +244,5 @@ partiallyTypedBridge.$on('paymentChanged', (payload: { status: number }) => {
 });
 // @ts-expect-error unconfigured and undeclared events are not exposed
 partiallyTypedBridge.$on('missingEvent', () => undefined);
+// @ts-expect-error unconfigured and undeclared events are not exposed
+partiallyTypedBridge.$events.missingEvent(() => undefined);

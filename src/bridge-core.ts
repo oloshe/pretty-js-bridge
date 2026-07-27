@@ -36,6 +36,7 @@ interface PendingCall {
 
 const CONTROL_KEYS = new Set([
   '$invoke',
+  '$events',
   '$on',
   '$once',
   '$handle',
@@ -168,6 +169,7 @@ class BridgeRuntime {
     const api: Record<string, unknown> = {
       $invoke: (method: PropertyKey, ...args: unknown[]) =>
         this.invoke(method, undefined, ...args),
+      $events: this.eventApi(),
       $on: this.on.bind(this),
       $once: this.once.bind(this),
       $handle: this.handle.bind(this),
@@ -213,6 +215,34 @@ class BridgeRuntime {
       api[method] = invoke;
     }
     return Object.freeze(api);
+  }
+
+  private eventApi(): object {
+    type Subscribe = (listener: Listener) => () => void;
+
+    const subscriptions = Object.create(null) as Record<string, Subscribe>;
+    const subscriptionsByName = new Map<string, Subscribe>();
+    const subscriptionFor = (event: string): Subscribe => {
+      const existing = subscriptionsByName.get(event);
+      if (existing) return existing;
+      const subscribe = (listener: Listener) => this.on(event, listener);
+      subscriptionsByName.set(event, subscribe);
+      return subscribe;
+    };
+
+    for (const event of Object.keys(this.options.events ?? {})) {
+      Object.defineProperty(subscriptions, event, {
+        enumerable: true,
+        value: subscriptionFor(event),
+      });
+    }
+
+    return new Proxy(Object.freeze(subscriptions), {
+      get: (target, event, receiver) =>
+        typeof event === 'string'
+          ? subscriptionFor(event)
+          : Reflect.get(target, event, receiver),
+    });
   }
 
   private invoke(

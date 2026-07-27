@@ -16,7 +16,7 @@
 - `$callbackId`、全局 `$callbackName`、超时、销毁与清理
 - 按平台和 App 版本声明方法支持范围，并提供类型安全的 fallback
 - 支持从 `methods` 配置推断方法，也支持“部分严格协议 + 额外未知方法”
-- 函数式协议支持第二泛型声明事件 payload，`$on` / `$once` 按事件名推断 listener
+- 函数式协议支持第二泛型声明事件 payload，`$events` / `$on` / `$once` 按事件名推断 listener
 - 同一个公共方法可按 Android、iOS 等 transport 平台映射到不同 native 方法
 - 支持在逐方法配置中声明固定 `callbackName`，并用 `withCallback()` 单次覆盖
 - 支持为方法配置固定参数的命名 `presets`，生成 `bridge.method.preset()` 零参调用
@@ -291,9 +291,16 @@ bridge.$on('paymentChanged', (payload) => {
   payload.status;        // 'success' | 'failed'
   payload.transactionId; // string
 });
+
+const off = bridge.$events.paymentChanged((payload) => {
+  payload.status;        // 'success' | 'failed'
+  payload.transactionId; // string
+});
+
+off();
 ```
 
-`$on` 和 `$once` 只接受已声明或注册配置中出现的事件名。已声明事件的 listener 参数使用对应 payload；只在配置中新增的事件保持 `unknown`。完整教程见 [`examples/02-events-and-callback-paths`](./examples/02-events-and-callback-paths/)。
+`$events` 将事件名直接暴露为订阅函数，返回取消订阅函数；它和 `$on` 都会持续监听，`$once` 只监听一次。三者只接受已声明或注册配置中出现的事件名。已声明事件的 listener 参数使用对应 payload；只在配置中新增的事件保持 `unknown`。完整教程见 [`examples/02-events-and-callback-paths`](./examples/02-events-and-callback-paths/)。
 
 ### 固定 native callback 名
 
@@ -344,7 +351,7 @@ callback 名的优先级为：
 注册时声明的 direct path 会被安装为全局函数。native 可以传对象或 JSON 字符串：
 
 ```ts
-const offPause = h5ToNative.$on('pause', ({ timestamp }) => {
+const offPause = h5ToNative.$events.pause(({ timestamp }) => {
   console.log('paused at', timestamp);
 });
 

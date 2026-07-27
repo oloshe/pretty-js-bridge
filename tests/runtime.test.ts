@@ -202,7 +202,10 @@ describe('PrettyJsBridge', () => {
       ],
     });
     const listener = vi.fn();
-    bridge.$on('pause', listener);
+    const stop = bridge.$events.pause(listener);
+
+    expect(Object.keys(bridge.$events)).toContain('pause');
+    expect(Reflect.get(bridge.$events, Symbol.toStringTag)).toBeUndefined();
 
     (
       (globalThis as Record<string, any>).androidJsObj.onPause as (
@@ -210,9 +213,17 @@ describe('PrettyJsBridge', () => {
       ) => void
     )('{"at":12}');
     expect(listener).toHaveBeenCalledWith({ at: 12 });
+
+    stop();
+    (
+      (globalThis as Record<string, any>).androidJsObj.onPause as (
+        data: string,
+      ) => void
+    )('{"at":13}');
+    expect(listener).toHaveBeenCalledOnce();
   });
 
-  it('dispatches unified events and handlers and returns handler results', async () => {
+  it('dispatches schema-only events and handlers through a unified entrypoint', async () => {
     const sent: HandlerResultEnvelope[] = [];
     const bridge = PrettyJsBridge.register<TestProtocol>({
       methods: { openPage: true },
@@ -227,10 +238,17 @@ describe('PrettyJsBridge', () => {
         }),
       ],
     });
+    const pauseListener = vi.fn();
+    bridge.$events.pause(pauseListener);
     bridge.$handle('getToken', ({ refresh }) => ({
       token: refresh ? 'fresh' : 'cached',
     }));
 
+    await (globalThis as Record<string, any>).callJsBridge({
+      type: 'event',
+      name: 'pause',
+      data: { at: 15 },
+    });
     await (globalThis as Record<string, any>).callJsBridge(
       JSON.stringify({
         type: 'handler',
@@ -247,6 +265,7 @@ describe('PrettyJsBridge', () => {
         data: { token: 'fresh' },
       },
     ]);
+    expect(pauseListener).toHaveBeenCalledWith({ at: 15 });
   });
 
   it('rejects when no transport is available and removes globals on destroy', async () => {

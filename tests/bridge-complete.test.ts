@@ -124,6 +124,18 @@ describe('registration and logging', () => {
       '[PrettyJsBridge] Bridge registration failed.',
       expect.objectContaining({ method: '$on' }),
     );
+
+    expect(() =>
+      PrettyJsBridge.register({
+        logger,
+        methods: { $events: true },
+        transports: [customTransport({ name: 'test', send: vi.fn() })],
+      }),
+    ).toThrow('Bridge method "$events" is reserved.');
+    expect(logger).toHaveBeenCalledWith(
+      '[PrettyJsBridge] Bridge registration failed.',
+      expect.objectContaining({ method: '$events' }),
+    );
   });
 });
 

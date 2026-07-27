@@ -8,7 +8,7 @@
 | 示例 | 覆盖能力 |
 |---|---|
 | [`01-typed-platform-calls`](./01-typed-platform-calls/) | 完整协议、无泛型方法推断、部分协议额外 key 推断、平台 target 映射、`$invoke`、全平台 transport |
-| [`02-events-and-callback-paths`](./02-events-and-callback-paths/) | 事件 payload 第二泛型、`$on` / `$once` listener 推断、全局函数、嵌套对象路径、统一入口事件 |
+| [`02-events-and-callback-paths`](./02-events-and-callback-paths/) | 事件 payload 第二泛型、`$events` / `$on` / `$once` listener 推断、全局函数、嵌套对象路径、统一入口事件 |
 | [`03-native-handlers`](./03-native-handlers/) | `$handle`、直接 handler、统一入口 handler、`handler-result` |
 | [`04-custom-transport-and-lifecycle`](./04-custom-transport-and-lifecycle/) | 自定义 transport、逐方法 transport、broadcast、`$callbackName`、超时、`$destroy` |
 | [`05-legacy-app-adapter`](./05-legacy-app-adapter/) | 匿名旧业务协议、方法 presets、缓存优先 hook、固定 callback、callback/event 共享派发、内部 JSON 解析、版本 fallback 和渐进迁移 |

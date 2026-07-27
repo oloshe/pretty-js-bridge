@@ -1,6 +1,6 @@
 # 示例 2：事件订阅与 native 回调路径
 
-这个示例展示 native 主动通知 H5 的三种入口，以及 `$on`/`$once` 发布订阅。
+这个示例展示 native 主动通知 H5 的三种入口，以及 `$events`、`$on`、`$once` 发布订阅。
 
 ## 1. 用第二泛型声明事件
 
@@ -22,7 +22,7 @@ const eventBridge = PrettyJsBridge.register<{}, EventPayloads>()({
 });
 ```
 
-调用 `$on('pause', listener)` 或 `$once('pause', listener)` 时，listener 参数会自动推断为 `{ timestamp: number }`；未声明且未配置的事件名会产生 TypeScript 错误。这里只演示事件，因此 methods 泛型使用 `{}`。
+调用 `$events.pause(listener)`、`$on('pause', listener)` 或 `$once('pause', listener)` 时，listener 参数会自动推断为 `{ timestamp: number }`；未声明且未配置的事件名会产生 TypeScript 错误。这里只演示事件，因此 methods 泛型使用 `{}`。
 
 ## 2. 直接挂到 window
 
@@ -45,15 +45,14 @@ window.onPause({
 库不会把业务逻辑直接放进 `window.onPause`。这个函数只负责派发 `pause` 事件，任意业务模块都可以订阅：
 
 ```ts
-const off = eventBridge.$on(
-  'pause',
-  ({ timestamp }) => {
-    console.log(timestamp);
-  },
-);
+const off = eventBridge.$events.pause(({ timestamp }) => {
+  console.log(timestamp);
+});
 
 off();
 ```
+
+`$events` 把每个已声明或配置的事件直接映射为订阅函数，返回值与 `$on` 相同，都是取消订阅函数。它适合事件名固定、希望通过属性补全选择事件的场景；`$on` 和 `$once` 仍然可用。
 
 ## 3. 嵌套对象路径
 
@@ -100,6 +99,7 @@ await eventBridge.$dispatch(message);
 ## 5. 生命周期
 
 - `$on` 每次事件都执行，返回取消函数。
+- `$events.<事件名>` 与 `$on` 语义相同，并提供事件名属性补全。
 - `$once` 只执行一次，随后自动取消。
 - `$destroy()` 删除库安装的全局路径、订阅和待处理 callback。
 

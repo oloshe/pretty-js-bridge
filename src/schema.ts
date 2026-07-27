@@ -605,6 +605,20 @@ type PayloadOf<T> = T extends BridgeEvent<infer P> ? P : never;
 type CallArgs<P> = [P] extends [void] ? [] : [params: P];
 
 /**
+ * @en Type-safe event subscription functions keyed by event name.
+ * @zh 按事件名映射的类型安全事件订阅函数。
+ */
+export type BridgeEventListeners<S extends BridgeSchema> = {
+  /**
+   * @param listener @en Event listener with the declared payload type. @zh 使用已声明 payload 类型的事件监听函数。
+   * @returns @en Unsubscribe function. @zh 取消订阅函数。
+   */
+  readonly [K in keyof NonNullable<S['events']>]: (
+    listener: (payload: PayloadOf<NonNullable<S['events']>[K]>) => void,
+  ) => () => void;
+};
+
+/**
  * @en Creates a callable method with `withCallback()` from a `BridgeMethod`.
  * @zh 从 `BridgeMethod` 生成可调用方法，并附带 `withCallback()`。
  *
@@ -678,6 +692,12 @@ export type TypedBridgeMethods<S extends BridgeSchema> = {
  * @zh 每个已注册 bridge 都包含的控制方法。
  */
 export interface BridgeControls<S extends BridgeSchema> {
+  /**
+   * @en Type-safe event subscription functions keyed by event name.
+   * @zh 按事件名提供的类型安全事件订阅函数。
+   */
+  readonly $events: BridgeEventListeners<S>;
+
   /**
    * @en Invokes native by method name.
    * @zh 按方法名调用 native。
